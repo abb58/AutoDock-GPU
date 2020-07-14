@@ -427,7 +427,7 @@ void gpu_gradient_minAD(uint32_t blocks,
                         float* pMem_energies_next)
 {
     size_t sz_shared = (6 * cpuData.dockpars.num_of_atoms + 5 * cpuData.dockpars.num_of_genes) * sizeof(float);
-    cl::sycl::buffer<GpuData> const_cData_buf(cl::sycl::range<1>(1));
+    extern cl::sycl::buffer<GpuData> const_cData_buf(cl::sycl::range<1>(1));
 
     get_sycl_queue().submit([&](cl::sycl::handler &cgh) {
 
