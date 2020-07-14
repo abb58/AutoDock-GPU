@@ -322,7 +322,7 @@ void gpu_gradient_minAD_kernel(float* pMem_conformations_next,
     }
     item_ct1.mem_fence();
     item_ct1.barrier();
-    
+
 #endif
 
     // Updating number of ADADELTA iterations (energy evaluations)
@@ -427,19 +427,15 @@ void gpu_gradient_minAD(uint32_t blocks,
                         float* pMem_energies_next)
 {
     size_t sz_shared = (6 * cpuData.dockpars.num_of_atoms + 5 * cpuData.dockpars.num_of_genes) * sizeof(float);
-    cl::sycl::buffer<int, 1> const_df_s1_size(host_s1_size, cl::sycl::range<1>{6});
+    cl::sycl::buffer<GpuData> const_cData_buf(cl::sycl::range<1>(1));
 
-    get_cl::sycl_queue.submit([&](cl::sycl::handler &cgh) {
+    get_sycl_queue().submit([&](cl::sycl::handler &cgh) {
 
-            auto const_df_s1_size_acc = const_df_s1_size.get_access<cl::sycl::access::mode::read, cl::sycl::access::target::const_buffer>(cgh);
-
-            extern dpct::constant_memory<GpuData, 0> cData;
-            auto cData_ptr_ct1 = cData.get_ptr();
+            // const memory
+            auto const_cData_acc = const_cData_buf.get_access<cl::sycl::access::mode::read, cl::sycl::access::target::const_buffer>(cgh);
+            auto cData_ptr = const_cData_acc.get_ptr();
 
             // (dynamic) shared memory
-            //cl::sycl::accessor<uint8_t, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local> dpct_local_acc(cl::sycl::range<1>(sz_shared), cgh);// DPCT
-                                                                                                                                                                   // convertion
-                                                                                                                                                                   // gave this
             cl::sycl::accessor<cl::sycl::cl_float,   1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local> dpct_local_acc(cl::sycl::range<1>(sz_shared), cgh);
 
             cl::sycl::accessor<cl::sycl::cl_int,     1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local> entity_id_acc(cl::sycl::range<1>(1), cgh);
@@ -452,10 +448,9 @@ void gpu_gradient_minAD(uint32_t blocks,
             cl::sycl::accessor<cl::sycl::cl_int,     1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local> cons_fail_acc(cl::sycl::range<1>(1), cgh);
 #endif
 
-            cgh.parallel_for(
-                cl::sycl::nd_range<3>(cl::sycl::range<3>(1, 1, blocks) * cl::sycl::range<3>(1, 1, threads),
-                                      cl::sycl::range<3>(1, 1, threads)),
-                [=](cl::sycl::nd_item<3> item_ct1) {
+            cgh.parallel_for(cl::sycl::nd_range<3>(cl::sycl::range<3>(1, 1, blocks) * cl::sycl::range<3>(1, 1, threads),
+                                                   cl::sycl::range<3>(1, 1, threads)),
+                             [=](cl::sycl::nd_item<3> item_ct1) {
                     gpu_gradient_minAD_kernel(pMem_conformations_next, pMem_energies_next,
 #ifdef ADADELTA_AUTOSTOP
                                               rho_acc.get_pointer(),
@@ -463,7 +458,7 @@ void gpu_gradient_minAD(uint32_t blocks,
                                               cons_fail_acc.get_pointer(),
 #endif
                                               item_ct1, dpct_local_acc.get_pointer(),
-                                              *cData_ptr_ct1,
+                                              *cData_ptr,
                                               entity_id_acc.get_pointer(),
                                               best_energy_acc.get_pointer(),
                                               sFloatAccumulator_acc.get_pointer());
